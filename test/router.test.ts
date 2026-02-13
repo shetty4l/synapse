@@ -77,14 +77,21 @@ function startMockUpstream(
 
 describe("Router", () => {
   let mockServer: BunServer;
+  let mock404Server: BunServer;
   const MOCK_PORT = 19876;
+  const MOCK_404_PORT = 19877;
 
   beforeAll(() => {
     mockServer = startMockUpstream(MOCK_PORT);
+    mock404Server = startMockUpstream(MOCK_404_PORT, {
+      failCount: 999,
+      statusCode: 404,
+    });
   });
 
   afterAll(() => {
     mockServer.stop(true);
+    mock404Server.stop(true);
   });
 
   function makeConfig(overrides?: Partial<SynapseConfig>): SynapseConfig {
@@ -236,5 +243,65 @@ describe("Router", () => {
 
     expect(result.result?.streaming).toBe(true);
     expect(result.result?.body).toBeInstanceOf(ReadableStream);
+  });
+
+  test("404 from wildcard provider falls through to next provider", async () => {
+    const config = makeConfig({
+      providers: [
+        {
+          name: "wildcard-no-model",
+          baseUrl: `http://localhost:${MOCK_404_PORT}/v1`,
+          models: ["*"],
+          maxFailures: 3,
+          cooldownSeconds: 60,
+        },
+        {
+          name: "has-model",
+          baseUrl: `http://localhost:${MOCK_PORT}/v1`,
+          models: ["target-model"],
+          maxFailures: 3,
+          cooldownSeconds: 60,
+        },
+      ],
+    });
+
+    const router = new Router(config);
+    const body = JSON.stringify({ model: "target-model", messages: [] });
+    const result = await router.routeChatCompletions("target-model", body);
+
+    expect(result.provider?.name).toBe("has-model");
+    expect(result.result?.status).toBe(200);
+    expect(result.attempted).toContain("wildcard-no-model");
+    expect(result.attempted).toContain("has-model");
+  });
+
+  test("404 from non-wildcard provider is returned immediately", async () => {
+    const config = makeConfig({
+      providers: [
+        {
+          name: "explicit-404",
+          baseUrl: `http://localhost:${MOCK_404_PORT}/v1`,
+          models: ["target-model"],
+          maxFailures: 3,
+          cooldownSeconds: 60,
+        },
+        {
+          name: "backup",
+          baseUrl: `http://localhost:${MOCK_PORT}/v1`,
+          models: ["target-model"],
+          maxFailures: 3,
+          cooldownSeconds: 60,
+        },
+      ],
+    });
+
+    const router = new Router(config);
+    const body = JSON.stringify({ model: "target-model", messages: [] });
+    const result = await router.routeChatCompletions("target-model", body);
+
+    // Should return the 404 from explicit-404, NOT fall through to backup
+    expect(result.provider?.name).toBe("explicit-404");
+    expect(result.result?.status).toBe(404);
+    expect(result.attempted).toEqual(["explicit-404"]);
   });
 });

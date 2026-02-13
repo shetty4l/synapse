@@ -113,6 +113,7 @@ Proxy a chat completion request through the provider fallback chain. Supports bo
 - Requires a JSON body with a `model` field
 - Max body size: 1 MB
 - On 2xx-4xx from a provider: returns the response immediately (client errors are not retried)
+- Exception: 404 from a wildcard (`["*"]`) provider falls through to the next provider (the wildcard provider doesn't have the requested model)
 - On 5xx or network error: falls back to the next provider
 - If all providers fail: returns 502
 
@@ -173,7 +174,11 @@ Request logs are written as JSONL to `~/.config/synapse/logs/requests.log`.
 After installing, the `synapse` command is available:
 
 ```
-synapse start          Start the server (foreground)
+synapse start          Start the server (background daemon)
+synapse stop           Stop the daemon
+synapse status         Show daemon status
+synapse restart        Restart the daemon
+synapse serve          Start the server (foreground)
 synapse health         Check health of running instance
 synapse config         Print resolved configuration
 synapse logs [n]       Show last n request log entries (default: 10)
@@ -183,17 +188,23 @@ synapse version        Show version
 All commands support `--json` for machine-readable output.
 
 ```sh
-# check if the server is running and providers are healthy
+# start synapse in the background
+synapse start
+
+# check daemon status
+synapse status
+
+# check provider health
 synapse health
 
-# view resolved config (with env vars interpolated, API keys masked)
+# view resolved config (API keys masked)
 synapse config
 
 # tail the last 25 request log entries
 synapse logs 25
 
-# JSON output for scripting
-synapse health --json
+# stop the daemon
+synapse stop
 ```
 
 ## Development
