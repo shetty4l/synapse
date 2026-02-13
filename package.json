@@ -4,6 +4,9 @@
   "description": "OpenAI-compatible LLM proxy with provider fallback chain",
   "type": "module",
   "main": "src/index.ts",
+  "bin": {
+    "synapse": "./src/cli.ts"
+  },
   "scripts": {
     "start": "bun run src/index.ts",
     "typecheck": "tsc --noEmit",

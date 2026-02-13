@@ -4,6 +4,14 @@ OpenAI-compatible LLM proxy with provider fallback chain.
 
 Synapse sits between your application and one or more LLM providers, routing requests through a prioritized chain. If the first provider fails, it automatically falls back to the next. It exposes a standard OpenAI-compatible API so clients need no modification.
 
+## Install
+
+```sh
+curl -fsSL https://github.com/shetty4l/synapse/releases/latest/download/install.sh | bash
+```
+
+Requires [Bun](https://bun.sh), `curl`, `tar`, and `jq`. Installs to `~/srv/synapse/` and symlinks the CLI to `~/.local/bin/synapse`.
+
 ## Features
 
 - **Provider fallback chain** -- priority-based routing with automatic failover on upstream errors
@@ -16,11 +24,11 @@ Synapse sits between your application and one or more LLM providers, routing req
 ## Quick start
 
 ```sh
-# install dependencies
-bun install
+# if installed via the install script
+synapse start
 
-# start with defaults (proxies to Ollama at localhost:11434)
-bun run start
+# or for development
+bun install && bun run start
 ```
 
 Synapse listens on port `7750` by default and forwards requests to a local Ollama instance.
@@ -159,6 +167,34 @@ Request logs are written as JSONL to `~/.config/synapse/logs/requests.log`.
 - Buffered with 1-second flush interval
 - Size-based rotation at 50 MB (keeps current + 1 rotated file)
 - Each entry records: timestamp, model, provider, latency, status, streaming flag, attempted/skipped providers, and error (if any)
+
+## CLI
+
+After installing, the `synapse` command is available:
+
+```
+synapse start          Start the server (foreground)
+synapse health         Check health of running instance
+synapse config         Print resolved configuration
+synapse logs [n]       Show last n request log entries (default: 10)
+synapse version        Show version
+```
+
+All commands support `--json` for machine-readable output.
+
+```sh
+# check if the server is running and providers are healthy
+synapse health
+
+# view resolved config (with env vars interpolated, API keys masked)
+synapse config
+
+# tail the last 25 request log entries
+synapse logs 25
+
+# JSON output for scripting
+synapse health --json
+```
 
 ## Development
 

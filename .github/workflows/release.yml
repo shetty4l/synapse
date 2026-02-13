@@ -115,4 +115,5 @@ jobs:
           gh release create "${TAG}" \
             --title "Release ${TAG}" \
             --notes "Automated release ${TAG}" \
-            "synapse-${TAG}.tar.gz"
+            "synapse-${TAG}.tar.gz" \
+            "scripts/install.sh"
