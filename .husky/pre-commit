@@ -1,0 +1,4 @@
+#!/bin/sh
+
+bun run validate || exit 1
+
