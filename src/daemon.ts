@@ -86,7 +86,8 @@ export async function getDaemonStatus(): Promise<DaemonStatus> {
   try {
     const response = await fetch(`http://localhost:${port}/health`);
     if (response.ok) {
-      return { running: true, pid, port };
+      const data = (await response.json()) as { uptime?: number };
+      return { running: true, pid, port, uptime: data.uptime };
     }
   } catch {
     // Server might be starting up
