@@ -176,7 +176,7 @@ export async function listModels(
 }
 
 /**
- * Check basic reachability of a provider (HEAD /models).
+ * Check basic reachability of a provider (GET /models).
  */
 export async function checkReachable(
   provider: ProviderConfig,
@@ -191,7 +191,6 @@ export async function checkReachable(
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5_000);
     const response = await fetch(url, {
-      method: "HEAD",
       headers,
       signal: controller.signal,
     });

@@ -57,7 +57,10 @@ describe("loadConfig", () => {
   });
 
   test("returns defaults when config file does not exist", () => {
-    const config = loadConfig(join(tmpDir, "nonexistent.json"));
+    const config = loadConfig({
+      configPath: join(tmpDir, "nonexistent.json"),
+      quiet: true,
+    });
     expect(config.port).toBe(7750);
     expect(config.providers).toHaveLength(1);
     expect(config.providers[0].name).toBe("ollama");
@@ -79,7 +82,7 @@ describe("loadConfig", () => {
       }),
     );
 
-    const config = loadConfig(configPath);
+    const config = loadConfig({ configPath, quiet: true });
     expect(config.port).toBe(9000);
     expect(config.providers[0].name).toBe("test-provider");
     expect(config.providers[0].maxFailures).toBe(3); // default applied
@@ -102,7 +105,7 @@ describe("loadConfig", () => {
       }),
     );
 
-    const config = loadConfig(configPath);
+    const config = loadConfig({ configPath, quiet: true });
     expect(config.providers[0].apiKey).toBe("sk-test-123");
     delete process.env.TEST_API_KEY;
   });
@@ -124,7 +127,7 @@ describe("loadConfig", () => {
       }),
     );
 
-    const config = loadConfig(configPath);
+    const config = loadConfig({ configPath, quiet: true });
     expect(config.port).toBe(8888);
     delete process.env.SYNAPSE_PORT;
   });
@@ -133,7 +136,7 @@ describe("loadConfig", () => {
     const configPath = join(tmpDir, "config.json");
     writeFileSync(configPath, JSON.stringify({ providers: [] }));
 
-    expect(() => loadConfig(configPath)).toThrow("non-empty");
+    expect(() => loadConfig({ configPath, quiet: true })).toThrow("non-empty");
   });
 
   test("validates provider fields", () => {
@@ -145,6 +148,8 @@ describe("loadConfig", () => {
       }),
     );
 
-    expect(() => loadConfig(configPath)).toThrow("non-empty string");
+    expect(() => loadConfig({ configPath, quiet: true })).toThrow(
+      "non-empty string",
+    );
   });
 });

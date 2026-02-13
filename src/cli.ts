@@ -4,7 +4,11 @@
  * Synapse CLI
  *
  * Usage:
- *   synapse start          Start the server (foreground)
+ *   synapse start          Start the server (background daemon)
+ *   synapse stop           Stop the daemon
+ *   synapse status         Show daemon status
+ *   synapse restart        Restart the daemon
+ *   synapse serve          Start the server (foreground)
  *   synapse health         Check health of running instance
  *   synapse config         Print resolved configuration
  *   synapse logs [n]       Show last n request log entries (default: 10)
@@ -19,6 +23,12 @@ import { existsSync, readFileSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 import { loadConfig } from "./config";
+import {
+  getDaemonStatus,
+  restartDaemon,
+  startDaemon,
+  stopDaemon,
+} from "./daemon";
 import { createServer } from "./server";
 import { VERSION } from "./version";
 
@@ -26,7 +36,11 @@ const HELP = `
 Synapse CLI — OpenAI-compatible LLM proxy
 
 Usage:
-  synapse start          Start the server (foreground)
+  synapse start          Start the server (background daemon)
+  synapse stop           Stop the daemon
+  synapse status         Show daemon status
+  synapse restart        Restart the daemon
+  synapse serve          Start the server (foreground)
   synapse health         Check health of running instance
   synapse config         Print resolved configuration
   synapse logs [n]       Show last n request log entries (default: 10)
@@ -55,7 +69,7 @@ function parseArgs(args: string[]): {
 
 // --- Commands ---
 
-function cmdStart(): void {
+function cmdServe(): void {
   const config = loadConfig();
   const server = createServer(config);
   const instance = server.start();
@@ -70,10 +84,38 @@ function cmdStart(): void {
   process.on("SIGTERM", shutdown);
 }
 
+async function cmdStart(): Promise<void> {
+  await startDaemon();
+}
+
+async function cmdStop(): Promise<void> {
+  await stopDaemon();
+}
+
+async function cmdStatus(json: boolean): Promise<void> {
+  const status = await getDaemonStatus();
+
+  if (json) {
+    console.log(JSON.stringify(status, null, 2));
+    process.exit(status.running ? 0 : 1);
+  }
+
+  if (!status.running) {
+    console.log("synapse is not running");
+    process.exit(1);
+  }
+
+  console.log(`synapse is running (PID: ${status.pid}, port: ${status.port})`);
+}
+
+async function cmdRestart(): Promise<void> {
+  await restartDaemon();
+}
+
 async function cmdHealth(json: boolean): Promise<void> {
   let port: number;
   try {
-    const config = loadConfig();
+    const config = loadConfig({ quiet: true });
     port = config.port;
   } catch {
     port = 7750;
@@ -268,7 +310,19 @@ async function main(): Promise<void> {
 
   switch (command) {
     case "start":
-      cmdStart();
+      await cmdStart();
+      return;
+    case "stop":
+      await cmdStop();
+      return;
+    case "status":
+      await cmdStatus(json);
+      return;
+    case "restart":
+      await cmdRestart();
+      return;
+    case "serve":
+      cmdServe();
       return;
     case "health":
       await cmdHealth(json);
