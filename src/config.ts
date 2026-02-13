@@ -196,15 +196,23 @@ function validateConfig(raw: unknown): SynapseConfig {
 
 // --- Load ---
 
-export function loadConfig(configPath?: string): SynapseConfig {
+export function loadConfig(options?: {
+  configPath?: string;
+  quiet?: boolean;
+}): SynapseConfig {
   const envPort = process.env.SYNAPSE_PORT;
   const filePath =
-    configPath ?? process.env.SYNAPSE_CONFIG_PATH ?? DEFAULT_CONFIG_PATH;
+    options?.configPath ??
+    process.env.SYNAPSE_CONFIG_PATH ??
+    DEFAULT_CONFIG_PATH;
+  const quiet = options?.quiet ?? false;
 
   if (!existsSync(filePath)) {
-    console.log(
-      `synapse: no config at ${filePath}, using defaults (ollama @ localhost:11434)`,
-    );
+    if (!quiet) {
+      console.log(
+        `synapse: no config at ${filePath}, using defaults (ollama @ localhost:11434)`,
+      );
+    }
     const config = { ...DEFAULT_CONFIG };
     if (envPort) {
       config.port = parsePort(envPort, "SYNAPSE_PORT");
@@ -228,8 +236,10 @@ export function loadConfig(configPath?: string): SynapseConfig {
     config.port = parsePort(envPort, "SYNAPSE_PORT");
   }
 
-  console.log(
-    `synapse: loaded config from ${filePath} (${config.providers.length} provider(s))`,
-  );
+  if (!quiet) {
+    console.log(
+      `synapse: loaded config from ${filePath} (${config.providers.length} provider(s))`,
+    );
+  }
   return config;
 }

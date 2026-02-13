@@ -74,6 +74,16 @@ export class Router {
         const result = await chatCompletions(provider, body, signal);
 
         if (result.status >= 200 && result.status < 500) {
+          // 404 from a wildcard provider means "I don't have this model" —
+          // fall through to the next provider instead of returning the error.
+          const isWildcard = provider.models.includes("*");
+          if (result.status === 404 && isWildcard) {
+            console.log(
+              `synapse: provider "${provider.name}" returned 404 for model "${model}" (wildcard), trying next`,
+            );
+            continue;
+          }
+
           // Success or client error (4xx) — don't failover on client errors
           this.health.recordSuccess(provider.name);
           return { provider, result, attempted, skipped };
