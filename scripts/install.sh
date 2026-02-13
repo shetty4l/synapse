@@ -131,7 +131,27 @@ prune_versions() {
 
 setup_data_dir() {
   mkdir -p "$DATA_DIR"
-  ok "Config directory ready: ${DATA_DIR}"
+
+  local config_file="${DATA_DIR}/config.json"
+  if [ ! -f "$config_file" ]; then
+    cat > "$config_file" <<'CONFIG'
+{
+  "port": 7750,
+  "providers": [
+    {
+      "name": "ollama",
+      "baseUrl": "http://localhost:11434/v1",
+      "models": ["*"],
+      "maxFailures": 3,
+      "cooldownSeconds": 60
+    }
+  ]
+}
+CONFIG
+    ok "Default config written to ${config_file}"
+  else
+    ok "Existing config preserved: ${config_file}"
+  fi
 }
 
 # --- CLI binary ---
@@ -161,20 +181,13 @@ print_status() {
   echo "  CLI:        ${BIN_DIR}/synapse"
   echo "  Config:     ${DATA_DIR}/config.json"
   echo ""
-  echo "  Start with defaults (Ollama at localhost:11434):"
+  echo "  Start the server:"
   echo "    synapse start"
   echo ""
-  echo "  To add providers, create ${DATA_DIR}/config.json:"
-  echo '    {'
-  echo '      "port": 7750,'
-  echo '      "providers": ['
-  echo '        {'
-  echo '          "name": "ollama",'
-  echo '          "baseUrl": "http://localhost:11434/v1",'
-  echo '          "models": ["*"]'
-  echo '        }'
-  echo '      ]'
-  echo '    }'
+  echo "  Check provider health:"
+  echo "    synapse health"
+  echo ""
+  echo "  Edit ${DATA_DIR}/config.json to add providers."
   echo ""
 }
 
