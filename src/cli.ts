@@ -85,11 +85,13 @@ function cmdServe(): void {
 }
 
 async function cmdStart(): Promise<void> {
-  await startDaemon();
+  const started = await startDaemon();
+  process.exit(started ? 0 : 1);
 }
 
 async function cmdStop(): Promise<void> {
-  await stopDaemon();
+  const stopped = await stopDaemon();
+  process.exit(stopped ? 0 : 1);
 }
 
 async function cmdStatus(json: boolean): Promise<void> {
@@ -106,10 +108,12 @@ async function cmdStatus(json: boolean): Promise<void> {
   }
 
   console.log(`synapse is running (PID: ${status.pid}, port: ${status.port})`);
+  process.exit(0);
 }
 
 async function cmdRestart(): Promise<void> {
-  await restartDaemon();
+  const restarted = await restartDaemon();
+  process.exit(restarted ? 0 : 1);
 }
 
 async function cmdHealth(json: boolean): Promise<void> {
