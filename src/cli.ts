@@ -107,8 +107,19 @@ async function cmdStatus(json: boolean): Promise<void> {
     process.exit(1);
   }
 
-  console.log(`synapse is running (PID: ${status.pid}, port: ${status.port})`);
+  const uptimeStr = status.uptime ? formatUptime(status.uptime) : "unknown";
+  console.log(
+    `synapse is running (PID: ${status.pid}, port: ${status.port}, uptime: ${uptimeStr})`,
+  );
   process.exit(0);
+}
+
+function formatUptime(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  return `${hours}h ${mins}m`;
 }
 
 async function cmdRestart(): Promise<void> {

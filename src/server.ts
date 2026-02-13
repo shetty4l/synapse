@@ -215,6 +215,7 @@ async function handleHealth(
     {
       status: allHealthy ? "healthy" : "degraded",
       version: VERSION,
+      uptime: Math.floor((Date.now() - startTime) / 1000),
       providers: providerHealth,
     },
     {
@@ -225,6 +226,8 @@ async function handleHealth(
 }
 
 // --- Server ---
+
+const startTime = Date.now();
 
 export function createServer(config: SynapseConfig): {
   start: () => ReturnType<typeof Bun.serve>;
