@@ -88,12 +88,12 @@ export class HealthTracker {
 
       if (wasHealthy) {
         health.unhealthySince = Date.now();
-        console.log(
+        console.error(
           `synapse: provider "${providerName}" marked unhealthy after ${health.consecutiveFailures} failures (cooldown ${cooldownSeconds}s)`,
         );
       } else {
         // Already unhealthy — extend cooldown on continued failures
-        console.log(
+        console.error(
           `synapse: provider "${providerName}" still failing (${health.consecutiveFailures} consecutive), cooldown extended`,
         );
       }
@@ -107,7 +107,7 @@ export class HealthTracker {
     const health = this.state.get(providerName);
     if (!health) return;
 
-    console.log(
+    console.error(
       `synapse: provider "${providerName}" auto-recovered after cooldown`,
     );
     health.healthy = true;
