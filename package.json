@@ -19,7 +19,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@shetty4l/core": "^0.1.11"
+    "@shetty4l/core": ">=0.1.0 <1.0.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.13",
