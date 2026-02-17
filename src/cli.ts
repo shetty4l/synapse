@@ -11,7 +11,7 @@
  *   synapse serve          Start the server (foreground)
  *   synapse health         Check health of running instance
  *   synapse config         Print resolved configuration
- *   synapse logs [n]       Show last n request log entries (default: 10)
+ *   synapse logs [n]       Show last n log lines (default: 10)
  *   synapse version        Show version
  *
  * Options:
@@ -19,9 +19,8 @@
  *   --help, -h             Show help
  */
 
-import { formatUptime, runCli } from "@shetty4l/core/cli";
+import { createLogsCommand, formatUptime, runCli } from "@shetty4l/core/cli";
 import { onShutdown } from "@shetty4l/core/signals";
-import { existsSync, readFileSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 import { loadConfig } from "./config";
@@ -45,7 +44,7 @@ Usage:
   synapse serve          Start the server (foreground)
   synapse health         Check health of running instance
   synapse config         Print resolved configuration
-  synapse logs [n]       Show last n request log entries (default: 10)
+  synapse logs [n]       Show last n log lines (default: 10)
 
 Options:
   --json                 Machine-readable JSON output
@@ -180,102 +179,11 @@ function cmdConfig(_args: string[], json: boolean): void {
   console.log();
 }
 
-function cmdLogs(args: string[], json: boolean): number {
-  const countStr = args[0];
-  const count = countStr ? Number.parseInt(countStr, 10) : 10;
-
-  if (Number.isNaN(count) || count < 1) {
-    console.error("Error: count must be a positive number");
-    return 1;
-  }
-
-  if (!existsSync(LOG_PATH)) {
-    if (json) {
-      console.log(JSON.stringify({ entries: [], count: 0 }));
-    } else {
-      console.log("No request logs found.");
-    }
-    return 0;
-  }
-
-  const content = readFileSync(LOG_PATH, "utf-8").trimEnd();
-  if (content.length === 0) {
-    if (json) {
-      console.log(JSON.stringify({ entries: [], count: 0 }));
-    } else {
-      console.log("No request logs found.");
-    }
-    return 0;
-  }
-
-  const lines = content.split("\n");
-  const tail = lines.slice(-count);
-  const entries = tail
-    .map((line) => {
-      try {
-        return JSON.parse(line);
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean);
-
-  if (json) {
-    console.log(JSON.stringify({ entries, count: entries.length }, null, 2));
-    return 0;
-  }
-
-  if (entries.length === 0) {
-    console.log("No request logs found.");
-    return 0;
-  }
-
-  // Table header
-  const cols = {
-    time: 19,
-    model: 20,
-    provider: 14,
-    status: 6,
-    latency: 9,
-    stream: 6,
-  };
-
-  console.log(
-    `\n${"Timestamp".padEnd(cols.time)}  ${"Model".padEnd(cols.model)}  ${"Provider".padEnd(cols.provider)}  ${"Status".padEnd(cols.status)}  ${"Latency".padEnd(cols.latency)}  Stream`,
-  );
-  console.log(
-    "-".repeat(
-      cols.time +
-        cols.model +
-        cols.provider +
-        cols.status +
-        cols.latency +
-        cols.stream +
-        10,
-    ),
-  );
-
-  for (const e of entries) {
-    const ts = e.timestamp?.slice(0, 19).replace("T", " ") ?? "?";
-    const model = truncate(e.model ?? "?", cols.model);
-    const provider = (e.provider ?? "-").padEnd(cols.provider);
-    const status = String(e.status ?? "?").padEnd(cols.status);
-    const latency = `${e.latencyMs ?? "?"}ms`.padEnd(cols.latency);
-    const stream = e.streaming ? "yes" : "no";
-
-    console.log(
-      `${ts.padEnd(cols.time)}  ${model}  ${provider}  ${status}  ${latency}  ${stream}`,
-    );
-  }
-
-  console.log(`\nShowing ${entries.length} of ${lines.length} entries\n`);
-  return 0;
-}
-
-function truncate(str: string, maxLen: number): string {
-  if (str.length <= maxLen) return str.padEnd(maxLen);
-  return `${str.slice(0, maxLen - 1)}…`;
-}
+const cmdLogs = createLogsCommand({
+  logFile: LOG_PATH,
+  emptyMessage: "No request logs found.",
+  defaultCount: 10,
+});
 
 // --- Main ---
 
