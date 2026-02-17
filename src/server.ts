@@ -242,6 +242,7 @@ export function createServer(config: SynapseConfig): {
         fetch: async (request) => {
           const url = new URL(request.url);
           const path = url.pathname;
+          const start = performance.now();
 
           // CORS preflight
           if (request.method === "OPTIONS") {
@@ -249,17 +250,30 @@ export function createServer(config: SynapseConfig): {
           }
 
           // Route
+          let response: Response;
           if (path === "/v1/chat/completions") {
-            return handleChatCompletions(router, logger, request);
-          }
-          if (path === "/v1/models") {
-            return handleModels(router);
-          }
-          if (path === "/health") {
-            return handleHealth(config, router);
+            response = await handleChatCompletions(router, logger, request);
+          } else if (path === "/v1/models") {
+            response = await handleModels(router);
+          } else if (path === "/health") {
+            response = await handleHealth(config, router);
+          } else {
+            response = openaiError(
+              404,
+              `Unknown endpoint: ${path}`,
+              "not_found",
+            );
           }
 
-          return openaiError(404, `Unknown endpoint: ${path}`, "not_found");
+          const latency = (performance.now() - start).toFixed(0);
+          // Skip health checks to reduce noise
+          if (path !== "/health") {
+            console.error(
+              `synapse: ${request.method} ${path} ${response.status} ${latency}ms`,
+            );
+          }
+
+          return response;
         },
       });
 
