@@ -209,7 +209,7 @@ export function loadConfig(options?: {
 
   if (!existsSync(filePath)) {
     if (!quiet) {
-      console.log(
+      console.error(
         `synapse: no config at ${filePath}, using defaults (ollama @ localhost:11434)`,
       );
     }
@@ -237,7 +237,7 @@ export function loadConfig(options?: {
   }
 
   if (!quiet) {
-    console.log(
+    console.error(
       `synapse: loaded config from ${filePath} (${config.providers.length} provider(s))`,
     );
   }

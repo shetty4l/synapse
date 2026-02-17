@@ -4,6 +4,9 @@
   "workspaces": {
     "": {
       "name": "synapse",
+      "dependencies": {
+        "@shetty4l/core": "^0.1.11",
+      },
       "devDependencies": {
         "@biomejs/biome": "^2.3.13",
         "@types/bun": "latest",
@@ -47,6 +50,8 @@
     "@oxlint/win32-arm64": ["@oxlint/win32-arm64@0.12.0", "", { "os": "win32", "cpu": "arm64" }, "sha512-hY1ya9dv8VY8113YSSDfMs/989aFmoA2fIZco8uxTxIEVl9nGY6tDtpgKZqUIiGrrMbDO8BBb1G5jsekmfexbA=="],
 
     "@oxlint/win32-x64": ["@oxlint/win32-x64@0.12.0", "", { "os": "win32", "cpu": "x64" }, "sha512-NHLJolo4sZk3nu/bPNuaJ+6p5DdHoRuZAjyuSO6CnLgpmZcYqx7LgngA/x2oB/bLgi4Hv9twjHjODc5Ce5o14g=="],
+
+    "@shetty4l/core": ["@shetty4l/core@0.1.11", "", { "bin": { "version-bump": "bin/version-bump" } }, "sha512-4TYv+mQ3Ec4Nyd1Pe5uaHMMh3pQLLFH5/CEUVka3X8v92nOGcYaAyyhUQgRZ9nCUgbkNiltngInx4jJndJ5x/g=="],
 
     "@types/bun": ["@types/bun@1.3.9", "", { "dependencies": { "bun-types": "1.3.9" } }, "sha512-KQ571yULOdWJiMH+RIWIOZ7B2RXQGpL1YQrBtLIV3FqDcCu6FsbFUBwhdKUlCKUpS3PJDsHlJ1QKlpxoVR+xtw=="],
 

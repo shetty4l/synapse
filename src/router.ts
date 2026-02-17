@@ -78,7 +78,7 @@ export class Router {
           // fall through to the next provider instead of returning the error.
           const isWildcard = provider.models.includes("*");
           if (result.status === 404 && isWildcard) {
-            console.log(
+            console.error(
               `synapse: provider "${provider.name}" returned 404 for model "${model}" (wildcard), trying next`,
             );
             continue;
@@ -95,7 +95,7 @@ export class Router {
           provider.maxFailures ?? 3,
           provider.cooldownSeconds ?? 60,
         );
-        console.log(
+        console.error(
           `synapse: provider "${provider.name}" returned ${result.status} for model "${model}", trying next`,
         );
       } catch (error) {
@@ -105,7 +105,7 @@ export class Router {
           provider.cooldownSeconds ?? 60,
         );
         const msg = error instanceof Error ? error.message : String(error);
-        console.log(
+        console.error(
           `synapse: provider "${provider.name}" error for model "${model}": ${msg}, trying next`,
         );
       }
