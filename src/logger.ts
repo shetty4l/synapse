@@ -95,7 +95,7 @@ export class RequestLogger {
       // Rotate: delete .1, rename current to .1
       await unlink(this.rotatedPath).catch(() => {});
       await rename(this.logPath, this.rotatedPath);
-      console.log("synapse: rotated request log");
+      console.error("synapse: rotated request log");
     } catch (error) {
       console.error("synapse: log rotation failed:", error);
     } finally {

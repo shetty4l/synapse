@@ -8,7 +8,7 @@ import { loadConfig } from "./config";
 import { createServer } from "./server";
 import { VERSION } from "./version";
 
-console.log(`synapse v${VERSION}`);
+console.error(`synapse v${VERSION}`);
 
 const config = loadConfig();
 const server = createServer(config);

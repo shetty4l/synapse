@@ -263,7 +263,7 @@ export function createServer(config: SynapseConfig): {
         },
       });
 
-      console.log(
+      console.error(
         `synapse: listening on http://localhost:${server.port} (${config.providers.length} provider(s))`,
       );
       return server;

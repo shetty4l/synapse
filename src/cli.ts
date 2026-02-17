@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 /**
- * Synapse CLI
+ * Synapse CLI — OpenAI-compatible LLM proxy
  *
  * Usage:
  *   synapse start          Start the server (background daemon)
@@ -19,6 +19,8 @@
  *   --help, -h             Show help
  */
 
+import { formatUptime, runCli } from "@shetty4l/core/cli";
+import { onShutdown } from "@shetty4l/core/signals";
 import { existsSync, readFileSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
@@ -44,7 +46,6 @@ Usage:
   synapse health         Check health of running instance
   synapse config         Print resolved configuration
   synapse logs [n]       Show last n request log entries (default: 10)
-  synapse version        Show version
 
 Options:
   --json                 Machine-readable JSON output
@@ -54,19 +55,6 @@ Options:
 
 const LOG_PATH = join(homedir(), ".config", "synapse", "logs", "requests.log");
 
-// --- Arg parsing ---
-
-function parseArgs(args: string[]): {
-  command: string;
-  args: string[];
-  json: boolean;
-} {
-  const filtered = args.filter((a) => a !== "--json");
-  const json = args.includes("--json");
-  const [command = "help", ...rest] = filtered;
-  return { command, args: rest, json };
-}
-
 // --- Commands ---
 
 function cmdServe(): void {
@@ -74,60 +62,45 @@ function cmdServe(): void {
   const server = createServer(config);
   const instance = server.start();
 
-  const shutdown = () => {
-    console.log("\nsynapse: shutting down...");
-    instance.stop();
-    process.exit(0);
-  };
-
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+  onShutdown(() => instance.stop(), { name: "synapse" });
 }
 
-async function cmdStart(): Promise<void> {
+async function cmdStart(): Promise<number> {
   const started = await startDaemon();
-  process.exit(started ? 0 : 1);
+  return started ? 0 : 1;
 }
 
-async function cmdStop(): Promise<void> {
+async function cmdStop(): Promise<number> {
   const stopped = await stopDaemon();
-  process.exit(stopped ? 0 : 1);
+  return stopped ? 0 : 1;
 }
 
-async function cmdStatus(json: boolean): Promise<void> {
+async function cmdStatus(_args: string[], json: boolean): Promise<number> {
   const status = await getDaemonStatus();
 
   if (json) {
     console.log(JSON.stringify(status, null, 2));
-    process.exit(status.running ? 0 : 1);
+    return status.running ? 0 : 1;
   }
 
   if (!status.running) {
     console.log("synapse is not running");
-    process.exit(1);
+    return 1;
   }
 
   const uptimeStr = status.uptime ? formatUptime(status.uptime) : "unknown";
   console.log(
     `synapse is running (PID: ${status.pid}, port: ${status.port}, uptime: ${uptimeStr})`,
   );
-  process.exit(0);
+  return 0;
 }
 
-function formatUptime(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
-  const hours = Math.floor(seconds / 3600);
-  const mins = Math.floor((seconds % 3600) / 60);
-  return `${hours}h ${mins}m`;
-}
-
-async function cmdRestart(): Promise<void> {
+async function cmdRestart(): Promise<number> {
   const restarted = await restartDaemon();
-  process.exit(restarted ? 0 : 1);
+  return restarted ? 0 : 1;
 }
 
-async function cmdHealth(json: boolean): Promise<void> {
+async function cmdHealth(_args: string[], json: boolean): Promise<number> {
   let port: number;
   try {
     const config = loadConfig({ quiet: true });
@@ -145,14 +118,14 @@ async function cmdHealth(json: boolean): Promise<void> {
     } else {
       console.error(`synapse is not running on port ${port}`);
     }
-    process.exit(1);
+    return 1;
   }
 
   const data = await response.json();
 
   if (json) {
     console.log(JSON.stringify(data, null, 2));
-    process.exit(data.status === "healthy" ? 0 : 1);
+    return data.status === "healthy" ? 0 : 1;
   }
 
   console.log(
@@ -180,10 +153,10 @@ async function cmdHealth(json: boolean): Promise<void> {
   }
 
   console.log();
-  process.exit(data.status === "healthy" ? 0 : 1);
+  return data.status === "healthy" ? 0 : 1;
 }
 
-function cmdConfig(json: boolean): void {
+function cmdConfig(_args: string[], json: boolean): void {
   const config = loadConfig();
 
   if (json) {
@@ -207,12 +180,13 @@ function cmdConfig(json: boolean): void {
   console.log();
 }
 
-function cmdLogs(countStr: string | undefined, json: boolean): void {
+function cmdLogs(args: string[], json: boolean): number {
+  const countStr = args[0];
   const count = countStr ? Number.parseInt(countStr, 10) : 10;
 
   if (Number.isNaN(count) || count < 1) {
     console.error("Error: count must be a positive number");
-    process.exit(1);
+    return 1;
   }
 
   if (!existsSync(LOG_PATH)) {
@@ -221,7 +195,7 @@ function cmdLogs(countStr: string | undefined, json: boolean): void {
     } else {
       console.log("No request logs found.");
     }
-    return;
+    return 0;
   }
 
   const content = readFileSync(LOG_PATH, "utf-8").trimEnd();
@@ -231,7 +205,7 @@ function cmdLogs(countStr: string | undefined, json: boolean): void {
     } else {
       console.log("No request logs found.");
     }
-    return;
+    return 0;
   }
 
   const lines = content.split("\n");
@@ -248,12 +222,12 @@ function cmdLogs(countStr: string | undefined, json: boolean): void {
 
   if (json) {
     console.log(JSON.stringify({ entries, count: entries.length }, null, 2));
-    return;
+    return 0;
   }
 
   if (entries.length === 0) {
     console.log("No request logs found.");
-    return;
+    return 0;
   }
 
   // Table header
@@ -295,6 +269,7 @@ function cmdLogs(countStr: string | undefined, json: boolean): void {
   }
 
   console.log(`\nShowing ${entries.length} of ${lines.length} entries\n`);
+  return 0;
 }
 
 function truncate(str: string, maxLen: number): string {
@@ -304,61 +279,18 @@ function truncate(str: string, maxLen: number): string {
 
 // --- Main ---
 
-async function main(): Promise<void> {
-  const rawArgs = process.argv.slice(2);
-
-  if (
-    rawArgs.includes("--help") ||
-    rawArgs.includes("-h") ||
-    rawArgs.length === 0
-  ) {
-    console.log(HELP);
-    process.exit(0);
-  }
-
-  if (rawArgs.includes("--version") || rawArgs.includes("-v")) {
-    console.log(VERSION);
-    process.exit(0);
-  }
-
-  const { command, args, json } = parseArgs(rawArgs);
-
-  switch (command) {
-    case "start":
-      await cmdStart();
-      return;
-    case "stop":
-      await cmdStop();
-      return;
-    case "status":
-      await cmdStatus(json);
-      return;
-    case "restart":
-      await cmdRestart();
-      return;
-    case "serve":
-      cmdServe();
-      return;
-    case "health":
-      await cmdHealth(json);
-      return;
-    case "config":
-      cmdConfig(json);
-      return;
-    case "logs":
-      cmdLogs(args[0], json);
-      return;
-    case "version":
-      console.log(VERSION);
-      return;
-    case "help":
-      console.log(HELP);
-      return;
-    default:
-      console.error(`Unknown command: ${command}`);
-      console.log(HELP);
-      process.exit(1);
-  }
-}
-
-main();
+runCli({
+  name: "synapse",
+  version: VERSION,
+  help: HELP,
+  commands: {
+    start: () => cmdStart(),
+    stop: () => cmdStop(),
+    status: cmdStatus,
+    restart: () => cmdRestart(),
+    serve: () => cmdServe(),
+    health: cmdHealth,
+    config: cmdConfig,
+    logs: cmdLogs,
+  },
+});
