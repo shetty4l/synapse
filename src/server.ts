@@ -44,9 +44,10 @@ async function getCachedReachability(provider: {
     return entry.reachable;
   }
 
-  const reachable = await checkReachable(
+  const result = await checkReachable(
     provider as import("./config").ProviderConfig,
   );
+  const reachable = result.ok;
   reachabilityCache.set(cacheKey, { reachable, cachedAt: Date.now() });
   return reachable;
 }

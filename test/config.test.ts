@@ -1,37 +1,38 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { interpolateEnvVars } from "@shetty4l/core/config";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
-import {
-  interpolateEnvVars,
-  loadConfig,
-  type SynapseConfig,
-} from "../src/config";
+import { loadConfig } from "../src/config";
 
 describe("interpolateEnvVars", () => {
   test("replaces ${VAR} with env value", () => {
     process.env.TEST_KEY = "secret-123";
-    expect(interpolateEnvVars("Bearer ${TEST_KEY}")).toBe("Bearer secret-123");
+    const result = interpolateEnvVars("Bearer ${TEST_KEY}");
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value).toBe("Bearer secret-123");
     delete process.env.TEST_KEY;
   });
 
   test("replaces multiple vars", () => {
     process.env.HOST = "localhost";
     process.env.PORT_VAR = "8080";
-    expect(interpolateEnvVars("http://${HOST}:${PORT_VAR}/v1")).toBe(
-      "http://localhost:8080/v1",
-    );
+    const result = interpolateEnvVars("http://${HOST}:${PORT_VAR}/v1");
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value).toBe("http://localhost:8080/v1");
     delete process.env.HOST;
     delete process.env.PORT_VAR;
   });
 
-  test("throws on missing env var", () => {
-    expect(() => interpolateEnvVars("${MISSING_VAR_XYZ}")).toThrow(
-      "MISSING_VAR_XYZ",
-    );
+  test("returns err on missing env var", () => {
+    const result = interpolateEnvVars("${MISSING_VAR_XYZ}");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("MISSING_VAR_XYZ");
   });
 
   test("returns string unchanged if no vars", () => {
-    expect(interpolateEnvVars("plain string")).toBe("plain string");
+    const result = interpolateEnvVars("plain string");
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value).toBe("plain string");
   });
 });
 
@@ -57,13 +58,15 @@ describe("loadConfig", () => {
   });
 
   test("returns defaults when config file does not exist", () => {
-    const config = loadConfig({
+    const result = loadConfig({
       configPath: join(tmpDir, "nonexistent.json"),
       quiet: true,
     });
-    expect(config.port).toBe(7750);
-    expect(config.providers).toHaveLength(1);
-    expect(config.providers[0].name).toBe("ollama");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.port).toBe(7750);
+    expect(result.value.providers).toHaveLength(1);
+    expect(result.value.providers[0].name).toBe("ollama");
   });
 
   test("loads config from file", () => {
@@ -82,10 +85,12 @@ describe("loadConfig", () => {
       }),
     );
 
-    const config = loadConfig({ configPath, quiet: true });
-    expect(config.port).toBe(9000);
-    expect(config.providers[0].name).toBe("test-provider");
-    expect(config.providers[0].maxFailures).toBe(3); // default applied
+    const result = loadConfig({ configPath, quiet: true });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.port).toBe(9000);
+    expect(result.value.providers[0].name).toBe("test-provider");
+    expect(result.value.providers[0].maxFailures).toBe(3); // default applied
   });
 
   test("interpolates env vars in config file", () => {
@@ -105,8 +110,10 @@ describe("loadConfig", () => {
       }),
     );
 
-    const config = loadConfig({ configPath, quiet: true });
-    expect(config.providers[0].apiKey).toBe("sk-test-123");
+    const result = loadConfig({ configPath, quiet: true });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.providers[0].apiKey).toBe("sk-test-123");
     delete process.env.TEST_API_KEY;
   });
 
@@ -127,8 +134,10 @@ describe("loadConfig", () => {
       }),
     );
 
-    const config = loadConfig({ configPath, quiet: true });
-    expect(config.port).toBe(8888);
+    const result = loadConfig({ configPath, quiet: true });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.port).toBe(8888);
     delete process.env.SYNAPSE_PORT;
   });
 
@@ -136,7 +145,9 @@ describe("loadConfig", () => {
     const configPath = join(tmpDir, "config.json");
     writeFileSync(configPath, JSON.stringify({ providers: [] }));
 
-    expect(() => loadConfig({ configPath, quiet: true })).toThrow("non-empty");
+    const result = loadConfig({ configPath, quiet: true });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("non-empty");
   });
 
   test("validates provider fields", () => {
@@ -148,8 +159,8 @@ describe("loadConfig", () => {
       }),
     );
 
-    expect(() => loadConfig({ configPath, quiet: true })).toThrow(
-      "non-empty string",
-    );
+    const result = loadConfig({ configPath, quiet: true });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("non-empty string");
   });
 });

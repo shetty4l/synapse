@@ -12,7 +12,12 @@
 
 import type { ProviderConfig, SynapseConfig } from "./config";
 import { HealthTracker } from "./health";
-import { chatCompletions, listModels, type ProviderResult } from "./provider";
+import {
+  chatCompletions,
+  listModels,
+  type Model,
+  type ProviderResult,
+} from "./provider";
 
 export interface RouteResult {
   /** The provider that handled the request (null if all failed) */
@@ -70,45 +75,48 @@ export class Router {
 
       attempted.push(provider.name);
 
-      try {
-        const result = await chatCompletions(provider, body, signal);
+      const result = await chatCompletions(provider, body, signal);
 
-        if (result.status >= 200 && result.status < 500) {
-          // 404 from a wildcard provider means "I don't have this model" —
-          // fall through to the next provider instead of returning the error.
-          const isWildcard = provider.models.includes("*");
-          if (result.status === 404 && isWildcard) {
-            console.error(
-              `synapse: provider "${provider.name}" returned 404 for model "${model}" (wildcard), trying next`,
-            );
-            continue;
-          }
+      if (!result.ok) {
+        // Network error or timeout — record failure and try next
+        this.health.recordFailure(
+          provider.name,
+          provider.maxFailures ?? 3,
+          provider.cooldownSeconds ?? 60,
+        );
+        console.error(
+          `synapse: provider "${provider.name}" error for model "${model}": ${result.error}, trying next`,
+        );
+        continue;
+      }
 
-          // Success or client error (4xx) — don't failover on client errors
-          this.health.recordSuccess(provider.name);
-          return { provider, result, attempted, skipped };
+      const upstream = result.value;
+
+      if (upstream.status >= 200 && upstream.status < 500) {
+        // 404 from a wildcard provider means "I don't have this model" —
+        // fall through to the next provider instead of returning the error.
+        const isWildcard = provider.models.includes("*");
+        if (upstream.status === 404 && isWildcard) {
+          console.error(
+            `synapse: provider "${provider.name}" returned 404 for model "${model}" (wildcard), trying next`,
+          );
+          continue;
         }
 
-        // 5xx — provider error, fail over
-        this.health.recordFailure(
-          provider.name,
-          provider.maxFailures ?? 3,
-          provider.cooldownSeconds ?? 60,
-        );
-        console.error(
-          `synapse: provider "${provider.name}" returned ${result.status} for model "${model}", trying next`,
-        );
-      } catch (error) {
-        this.health.recordFailure(
-          provider.name,
-          provider.maxFailures ?? 3,
-          provider.cooldownSeconds ?? 60,
-        );
-        const msg = error instanceof Error ? error.message : String(error);
-        console.error(
-          `synapse: provider "${provider.name}" error for model "${model}": ${msg}, trying next`,
-        );
+        // Success or client error (4xx) — don't failover on client errors
+        this.health.recordSuccess(provider.name);
+        return { provider, result: upstream, attempted, skipped };
       }
+
+      // 5xx — provider error, fail over
+      this.health.recordFailure(
+        provider.name,
+        provider.maxFailures ?? 3,
+        provider.cooldownSeconds ?? 60,
+      );
+      console.error(
+        `synapse: provider "${provider.name}" returned ${upstream.status} for model "${model}", trying next`,
+      );
     }
 
     return {
@@ -124,9 +132,7 @@ export class Router {
    * Aggregate models from all healthy providers.
    * Deduplicates by model ID — first provider in config order wins.
    */
-  async listAllModels(): Promise<
-    { id: string; object: string; owned_by: string }[]
-  > {
+  async listAllModels(): Promise<Model[]> {
     const healthyProviders = this.config.providers.filter((p) =>
       this.health.isHealthy(p.name),
     );
@@ -137,12 +143,12 @@ export class Router {
 
     // Process in config order so first provider always wins dedup
     const seen = new Set<string>();
-    const allModels: { id: string; object: string; owned_by: string }[] = [];
+    const allModels: Model[] = [];
 
     for (let i = 0; i < results.length; i++) {
-      const result = results[i];
-      if (result.status === "fulfilled") {
-        for (const model of result.value) {
+      const settled = results[i];
+      if (settled.status === "fulfilled" && settled.value.ok) {
+        for (const model of settled.value.value) {
           if (!seen.has(model.id)) {
             seen.add(model.id);
             allModels.push(model);
