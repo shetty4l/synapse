@@ -11,6 +11,8 @@
  * the individual SSE events, just pipe the upstream response body through.
  */
 
+import type { Result } from "@shetty4l/core/result";
+import { err, ok } from "@shetty4l/core/result";
 import type { ProviderConfig } from "./config";
 
 export interface ProviderResult {
@@ -22,6 +24,13 @@ export interface ProviderResult {
   body: ReadableStream<Uint8Array> | string;
   /** Whether this is a streaming response */
   streaming: boolean;
+}
+
+/** Model metadata returned by /models endpoints */
+export interface Model {
+  id: string;
+  object: string;
+  owned_by: string;
 }
 
 const TIMEOUT_MS = 120_000; // 2 minutes
@@ -72,7 +81,7 @@ export async function chatCompletions(
   provider: ProviderConfig,
   body: string,
   signal?: AbortSignal,
-): Promise<ProviderResult> {
+): Promise<Result<ProviderResult, string>> {
   const url = `${provider.baseUrl}/chat/completions`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -112,29 +121,32 @@ export async function chatCompletions(
         controller,
         STREAM_IDLE_TIMEOUT_MS,
       );
-      return {
+      return ok({
         status: response.status,
         headers: responseHeaders,
         body: guardedStream,
         streaming: true,
-      };
+      });
     }
 
     clearTimeout(timeout);
     const text = await response.text();
-    return {
+    return ok({
       status: response.status,
       headers: responseHeaders,
       body: text,
       streaming: false,
-    };
+    });
   } catch (error) {
     clearTimeout(timeout);
 
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error(`Provider "${provider.name}" request timed out`);
+      return err(
+        `timeout after ${TIMEOUT_MS}ms for provider "${provider.name}"`,
+      );
     }
-    throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    return err(`connection failed: ${message}`);
   }
 }
 
@@ -143,7 +155,7 @@ export async function chatCompletions(
  */
 export async function listModels(
   provider: ProviderConfig,
-): Promise<{ id: string; object: string; owned_by: string }[]> {
+): Promise<Result<Model[], string>> {
   const url = `${provider.baseUrl}/models`;
   const headers: Record<string, string> = {};
   if (provider.apiKey) {
@@ -162,16 +174,17 @@ export async function listModels(
     clearTimeout(timeout);
 
     if (!response.ok) {
-      return [];
+      return err(`${provider.name}: /models returned ${response.status}`);
     }
 
     const data = (await response.json()) as {
-      data?: { id: string; object: string; owned_by: string }[];
+      data?: Model[];
     };
-    return data.data ?? [];
-  } catch {
+    return ok(data.data ?? []);
+  } catch (error) {
     clearTimeout(timeout);
-    return [];
+    const message = error instanceof Error ? error.message : String(error);
+    return err(`${provider.name}: ${message}`);
   }
 }
 
@@ -180,7 +193,7 @@ export async function listModels(
  */
 export async function checkReachable(
   provider: ProviderConfig,
-): Promise<boolean> {
+): Promise<Result<true, string>> {
   const url = `${provider.baseUrl}/models`;
   const headers: Record<string, string> = {};
   if (provider.apiKey) {
@@ -195,8 +208,12 @@ export async function checkReachable(
       signal: controller.signal,
     });
     clearTimeout(timeout);
-    return response.ok;
-  } catch {
-    return false;
+    if (!response.ok) {
+      return err(`${provider.name}: /models returned ${response.status}`);
+    }
+    return ok(true as const);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return err(`${provider.name}: ${message}`);
   }
 }

@@ -5,6 +5,8 @@
  * PID and log files stored in ~/.config/synapse/
  */
 
+import type { Result } from "@shetty4l/core/result";
+import { err, ok } from "@shetty4l/core/result";
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
@@ -75,13 +77,8 @@ export async function getDaemonStatus(): Promise<DaemonStatus> {
   }
 
   // Try to get health info from the running server
-  let port: number;
-  try {
-    const config = loadConfig({ quiet: true });
-    port = config.port;
-  } catch {
-    port = 7750;
-  }
+  const configResult = loadConfig({ quiet: true });
+  const port = configResult.ok ? configResult.value.port : 7750;
 
   try {
     const response = await fetch(`http://localhost:${port}/health`);
@@ -98,23 +95,19 @@ export async function getDaemonStatus(): Promise<DaemonStatus> {
 
 /**
  * Start the daemon.
- * Returns true if started successfully, false if already running.
+ * Returns ok with pid and port on success, err with reason on failure.
  */
-export async function startDaemon(): Promise<boolean> {
+export async function startDaemon(): Promise<
+  Result<{ pid: number; port: number }, string>
+> {
   const status = await getDaemonStatus();
 
   if (status.running) {
-    console.log(`synapse daemon already running (PID: ${status.pid})`);
-    return false;
+    return err(`already running (pid ${status.pid})`);
   }
 
-  let port: number;
-  try {
-    const config = loadConfig({ quiet: true });
-    port = config.port;
-  } catch {
-    port = 7750;
-  }
+  const configResult = loadConfig({ quiet: true });
+  const port = configResult.ok ? configResult.value.port : 7750;
 
   const cliPath = join(import.meta.dir, "cli.ts");
 
@@ -131,25 +124,22 @@ export async function startDaemon(): Promise<boolean> {
 
   const newStatus = await getDaemonStatus();
   if (newStatus.running) {
-    console.log(`synapse daemon started (PID: ${proc.pid}, port: ${port})`);
-    return true;
+    return ok({ pid: proc.pid, port });
   }
 
-  console.error("Failed to start synapse daemon. Check logs:", LOG_FILE);
   removePidFile();
-  return false;
+  return err(`failed to start — check logs at ${LOG_FILE}`);
 }
 
 /**
  * Stop the daemon.
- * Returns true if stopped successfully, false if not running.
+ * Returns ok on success, err with reason on failure.
  */
-export async function stopDaemon(): Promise<boolean> {
+export async function stopDaemon(): Promise<Result<void, string>> {
   const status = await getDaemonStatus();
 
   if (!status.running || !status.pid) {
-    console.log("synapse daemon is not running");
-    return false;
+    return err("not running");
   }
 
   try {
@@ -174,19 +164,24 @@ export async function stopDaemon(): Promise<boolean> {
     }
 
     removePidFile();
-    console.log(`synapse daemon stopped (was PID: ${status.pid})`);
-    return true;
+    return ok(undefined);
   } catch (error) {
-    console.error("Error stopping daemon:", error);
+    const message = error instanceof Error ? error.message : String(error);
     removePidFile();
-    return false;
+    return err(`failed to stop (pid ${status.pid}): ${message}`);
   }
 }
 
 /**
  * Restart the daemon.
  */
-export async function restartDaemon(): Promise<boolean> {
-  await stopDaemon();
+export async function restartDaemon(): Promise<
+  Result<{ pid: number; port: number }, string>
+> {
+  const stopResult = await stopDaemon();
+  // Ignore "not running" error on stop — that's fine for restart
+  if (!stopResult.ok && stopResult.error !== "not running") {
+    return stopResult as Result<never>;
+  }
   return startDaemon();
 }

@@ -10,6 +10,10 @@ import { VERSION } from "./version";
 
 console.error(`synapse v${VERSION}`);
 
-const config = loadConfig();
-const server = createServer(config);
+const configResult = loadConfig();
+if (!configResult.ok) {
+  console.error(`synapse: config error: ${configResult.error}`);
+  process.exit(1);
+}
+const server = createServer(configResult.value);
 server.start();

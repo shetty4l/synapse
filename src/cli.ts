@@ -57,21 +57,41 @@ const LOG_PATH = join(homedir(), ".config", "synapse", "logs", "requests.log");
 // --- Commands ---
 
 function cmdServe(): void {
-  const config = loadConfig();
-  const server = createServer(config);
+  const configResult = loadConfig();
+  if (!configResult.ok) {
+    console.error(`synapse: config error: ${configResult.error}`);
+    process.exit(1);
+  }
+  const server = createServer(configResult.value);
   const instance = server.start();
 
   onShutdown(() => instance.stop(), { name: "synapse" });
 }
 
 async function cmdStart(): Promise<number> {
-  const started = await startDaemon();
-  return started ? 0 : 1;
+  const result = await startDaemon();
+  if (!result.ok) {
+    console.error(`synapse: ${result.error}`);
+    return 1;
+  }
+  console.log(
+    `synapse daemon started (PID: ${result.value.pid}, port: ${result.value.port})`,
+  );
+  return 0;
 }
 
 async function cmdStop(): Promise<number> {
-  const stopped = await stopDaemon();
-  return stopped ? 0 : 1;
+  const result = await stopDaemon();
+  if (!result.ok) {
+    if (result.error === "not running") {
+      console.log("synapse daemon is not running");
+    } else {
+      console.error(`synapse: ${result.error}`);
+    }
+    return 1;
+  }
+  console.log("synapse daemon stopped");
+  return 0;
 }
 
 async function cmdStatus(_args: string[], json: boolean): Promise<number> {
@@ -95,18 +115,20 @@ async function cmdStatus(_args: string[], json: boolean): Promise<number> {
 }
 
 async function cmdRestart(): Promise<number> {
-  const restarted = await restartDaemon();
-  return restarted ? 0 : 1;
+  const result = await restartDaemon();
+  if (!result.ok) {
+    console.error(`synapse: ${result.error}`);
+    return 1;
+  }
+  console.log(
+    `synapse daemon restarted (PID: ${result.value.pid}, port: ${result.value.port})`,
+  );
+  return 0;
 }
 
 async function cmdHealth(_args: string[], json: boolean): Promise<number> {
-  let port: number;
-  try {
-    const config = loadConfig({ quiet: true });
-    port = config.port;
-  } catch {
-    port = 7750;
-  }
+  const configResult = loadConfig({ quiet: true });
+  const port = configResult.ok ? configResult.value.port : 7750;
 
   let response: Response;
   try {
@@ -156,7 +178,12 @@ async function cmdHealth(_args: string[], json: boolean): Promise<number> {
 }
 
 function cmdConfig(_args: string[], json: boolean): void {
-  const config = loadConfig();
+  const configResult = loadConfig();
+  if (!configResult.ok) {
+    console.error(`synapse: config error: ${configResult.error}`);
+    process.exit(1);
+  }
+  const config = configResult.value;
 
   if (json) {
     console.log(JSON.stringify(config, null, 2));
