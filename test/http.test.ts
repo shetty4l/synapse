@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { SynapseServer } from "../src/server";
 import { createServer } from "../src/server";
 
 type BunServer = ReturnType<typeof Bun.serve>;
@@ -69,11 +70,11 @@ function startMockUpstream(): BunServer {
 
 describe("HTTP integration", () => {
   let mockUpstream: BunServer;
-  let synapseServer: BunServer;
+  let synapseServer: SynapseServer;
 
   beforeAll(() => {
     mockUpstream = startMockUpstream();
-    const server = createServer({
+    synapseServer = createServer({
       port: SYNAPSE_PORT,
       providers: [
         {
@@ -85,11 +86,10 @@ describe("HTTP integration", () => {
         },
       ],
     });
-    synapseServer = server.start();
   });
 
   afterAll(() => {
-    synapseServer.stop(true);
+    synapseServer.stop();
     mockUpstream.stop(true);
   });
 
@@ -202,6 +202,6 @@ describe("HTTP integration", () => {
     expect(res.status).toBe(404);
 
     const data = (await res.json()) as { error: string };
-    expect(data.error).toContain("Unknown endpoint");
+    expect(data.error).toContain("Not found");
   });
 });

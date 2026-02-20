@@ -6,16 +6,15 @@
  *   GET  /v1/models            — aggregated models from all healthy providers
  *   GET  /health               — service health + provider status
  *
- * Uses Bun.serve directly (not core's createServer) because synapse needs
- * custom /health with provider status data.  CORS, JSON response, and health
- * utilities are imported from @shetty4l/core/http.
+ * Built on core's createServer which handles CORS preflight, /health routing,
+ * and 404s. Synapse provides an onHealth callback for custom provider status
+ * and an onRequest handler for application routes.
  */
 
 import {
   corsHeaders,
-  corsPreflightResponse,
+  createServer as createHttpServer,
   healthResponse,
-  jsonError,
   jsonOk,
 } from "@shetty4l/core/http";
 import { createLogger } from "@shetty4l/core/log";
@@ -190,6 +189,7 @@ async function handleModels(router: Router): Promise<Response> {
 async function handleHealth(
   config: SynapseConfig,
   router: Router,
+  startTime: number,
 ): Promise<Response> {
   const providerHealth = await Promise.all(
     config.providers.map(async (p) => {
@@ -226,56 +226,51 @@ async function handleHealth(
 
 // --- Server ---
 
-const startTime = Date.now();
-
-export function createServer(config: SynapseConfig): {
-  start: () => ReturnType<typeof Bun.serve>;
+export interface SynapseServer {
+  /** Actual port the server is listening on. */
+  port: number;
+  /** Stop the server. */
+  stop: () => void;
+  /** Request logger (call shutdown() on graceful exit). */
   logger: RequestLogger;
-} {
+}
+
+export function createServer(config: SynapseConfig): SynapseServer {
   const router = new Router(config);
   const logger = new RequestLogger();
 
-  return {
-    logger,
-    start: () => {
-      const server = Bun.serve({
-        port: config.port,
-        fetch: async (request) => {
-          const url = new URL(request.url);
-          const path = url.pathname;
-          const start = performance.now();
+  const server = createHttpServer({
+    name: "synapse",
+    port: config.port,
+    version: VERSION,
+    onHealth: (_version, startTime) => handleHealth(config, router, startTime),
+    onRequest: async (req, url) => {
+      const path = url.pathname;
+      const start = performance.now();
 
-          // CORS preflight
-          if (request.method === "OPTIONS") {
-            return corsPreflightResponse();
-          }
+      let response: Response;
+      if (path === "/v1/chat/completions") {
+        response = await handleChatCompletions(router, logger, req);
+      } else if (path === "/v1/models") {
+        response = await handleModels(router);
+      } else {
+        return null;
+      }
 
-          // Route
-          let response: Response;
-          if (path === "/v1/chat/completions") {
-            response = await handleChatCompletions(router, logger, request);
-          } else if (path === "/v1/models") {
-            response = await handleModels(router);
-          } else if (path === "/health") {
-            response = await handleHealth(config, router);
-          } else {
-            response = jsonError(404, `Unknown endpoint: ${path}`);
-          }
+      const latency = (performance.now() - start).toFixed(0);
+      log(`${req.method} ${path} ${response.status} ${latency}ms`);
 
-          const latency = (performance.now() - start).toFixed(0);
-          // Skip health checks to reduce noise
-          if (path !== "/health") {
-            log(`${request.method} ${path} ${response.status} ${latency}ms`);
-          }
-
-          return response;
-        },
-      });
-
-      log(
-        `listening on http://localhost:${server.port} (${config.providers.length} provider(s))`,
-      );
-      return server;
+      return response;
     },
+  });
+
+  log(
+    `listening on http://localhost:${server.port} (${config.providers.length} provider(s))`,
+  );
+
+  return {
+    port: server.port,
+    stop: server.stop,
+    logger,
   };
 }
