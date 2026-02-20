@@ -63,12 +63,11 @@ export function run(): void {
     process.exit(1);
   }
   const server = createServer(configResult.value);
-  const instance = server.start();
 
   onShutdown(
     async () => {
       await server.logger.shutdown();
-      instance.stop();
+      server.stop();
     },
     { name: "synapse", timeoutMs: 15_000 },
   );
