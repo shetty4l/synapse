@@ -6,9 +6,18 @@
  *   GET  /v1/models            — aggregated models from all healthy providers
  *   GET  /health               — service health + provider status
  *
- * Uses Bun.serve for native performance.
+ * Uses Bun.serve directly (not core's createServer) because synapse needs
+ * custom /health with provider status data.  CORS, JSON response, and health
+ * utilities are imported from @shetty4l/core/http.
  */
 
+import {
+  corsHeaders,
+  corsPreflightResponse,
+  healthResponse,
+  jsonError,
+  jsonOk,
+} from "@shetty4l/core/http";
 import { createLogger } from "@shetty4l/core/log";
 import type { SynapseConfig } from "./config";
 import { createLogEntry, RequestLogger } from "./logger";
@@ -73,20 +82,6 @@ function openaiError(
     },
     { status, headers: corsHeaders() },
   );
-}
-
-// --- CORS ---
-
-function corsHeaders(): Record<string, string> {
-  return {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  };
-}
-
-function handleCors(): Response {
-  return new Response(null, { status: 204, headers: corsHeaders() });
 }
 
 // --- Handlers ---
@@ -189,10 +184,7 @@ async function handleChatCompletions(
 
 async function handleModels(router: Router): Promise<Response> {
   const models = await router.listAllModels();
-  return Response.json(
-    { object: "list", data: models },
-    { headers: corsHeaders() },
-  );
+  return jsonOk({ object: "list", data: models });
 }
 
 async function handleHealth(
@@ -215,18 +207,21 @@ async function handleHealth(
 
   const allHealthy = providerHealth.every((p) => p.healthy);
 
-  return Response.json(
-    {
-      status: allHealthy ? "healthy" : "degraded",
-      version: VERSION,
-      uptime: Math.floor((Date.now() - startTime) / 1000),
-      providers: providerHealth,
-    },
-    {
-      status: allHealthy ? 200 : 503,
-      headers: corsHeaders(),
-    },
-  );
+  if (!allHealthy) {
+    return jsonOk(
+      {
+        status: "degraded",
+        version: VERSION,
+        uptime: Math.floor((Date.now() - startTime) / 1000),
+        providers: providerHealth,
+      },
+      503,
+    );
+  }
+
+  return healthResponse(VERSION, startTime, {
+    providers: providerHealth,
+  });
 }
 
 // --- Server ---
@@ -252,7 +247,7 @@ export function createServer(config: SynapseConfig): {
 
           // CORS preflight
           if (request.method === "OPTIONS") {
-            return handleCors();
+            return corsPreflightResponse();
           }
 
           // Route
@@ -264,11 +259,7 @@ export function createServer(config: SynapseConfig): {
           } else if (path === "/health") {
             response = await handleHealth(config, router);
           } else {
-            response = openaiError(
-              404,
-              `Unknown endpoint: ${path}`,
-              "not_found",
-            );
+            response = jsonError(404, `Unknown endpoint: ${path}`);
           }
 
           const latency = (performance.now() - start).toFixed(0);
