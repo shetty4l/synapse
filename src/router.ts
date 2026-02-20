@@ -10,6 +10,7 @@
  *   6. If all exhausted: return 502
  */
 
+import { createLogger } from "@shetty4l/core/log";
 import type { ProviderConfig, SynapseConfig } from "./config";
 import { HealthTracker } from "./health";
 import {
@@ -18,6 +19,8 @@ import {
   type Model,
   type ProviderResult,
 } from "./provider";
+
+const log = createLogger("synapse");
 
 export interface RouteResult {
   /** The provider that handled the request (null if all failed) */
@@ -84,8 +87,8 @@ export class Router {
           provider.maxFailures ?? 3,
           provider.cooldownSeconds ?? 60,
         );
-        console.error(
-          `synapse: provider "${provider.name}" error for model "${model}": ${result.error}, trying next`,
+        log(
+          `provider "${provider.name}" error for model "${model}": ${result.error}, trying next`,
         );
         continue;
       }
@@ -97,14 +100,17 @@ export class Router {
         // fall through to the next provider instead of returning the error.
         const isWildcard = provider.models.includes("*");
         if (upstream.status === 404 && isWildcard) {
-          console.error(
-            `synapse: provider "${provider.name}" returned 404 for model "${model}" (wildcard), trying next`,
+          log(
+            `provider "${provider.name}" returned 404 for model "${model}" (wildcard), trying next`,
           );
           continue;
         }
 
         // Success or client error (4xx) — don't failover on client errors
         this.health.recordSuccess(provider.name);
+        log(
+          `provider "${provider.name}" handled model "${model}" (${upstream.status})`,
+        );
         return { provider, result: upstream, attempted, skipped };
       }
 
@@ -114,17 +120,20 @@ export class Router {
         provider.maxFailures ?? 3,
         provider.cooldownSeconds ?? 60,
       );
-      console.error(
-        `synapse: provider "${provider.name}" returned ${upstream.status} for model "${model}", trying next`,
+      log(
+        `provider "${provider.name}" returned ${upstream.status} for model "${model}", trying next`,
       );
     }
+
+    const error = `All providers exhausted for model "${model}". Attempted: [${attempted.join(", ")}], Skipped: [${skipped.join(", ")}]`;
+    log(error);
 
     return {
       provider: null,
       result: null,
       attempted,
       skipped,
-      error: `All providers exhausted for model "${model}". Attempted: [${attempted.join(", ")}], Skipped: [${skipped.join(", ")}]`,
+      error,
     };
   }
 

@@ -9,11 +9,14 @@
  * Uses Bun.serve for native performance.
  */
 
+import { createLogger } from "@shetty4l/core/log";
 import type { SynapseConfig } from "./config";
 import { createLogEntry, RequestLogger } from "./logger";
 import { checkReachable } from "./provider";
 import { Router } from "./router";
 import { VERSION } from "./version";
+
+const log = createLogger("synapse");
 
 // --- Constants ---
 
@@ -232,11 +235,13 @@ const startTime = Date.now();
 
 export function createServer(config: SynapseConfig): {
   start: () => ReturnType<typeof Bun.serve>;
+  logger: RequestLogger;
 } {
   const router = new Router(config);
   const logger = new RequestLogger();
 
   return {
+    logger,
     start: () => {
       const server = Bun.serve({
         port: config.port,
@@ -269,17 +274,15 @@ export function createServer(config: SynapseConfig): {
           const latency = (performance.now() - start).toFixed(0);
           // Skip health checks to reduce noise
           if (path !== "/health") {
-            console.error(
-              `synapse: ${request.method} ${path} ${response.status} ${latency}ms`,
-            );
+            log(`${request.method} ${path} ${response.status} ${latency}ms`);
           }
 
           return response;
         },
       });
 
-      console.error(
-        `synapse: listening on http://localhost:${server.port} (${config.providers.length} provider(s))`,
+      log(
+        `listening on http://localhost:${server.port} (${config.providers.length} provider(s))`,
       );
       return server;
     },

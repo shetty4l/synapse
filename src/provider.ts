@@ -11,9 +11,12 @@
  * the individual SSE events, just pipe the upstream response body through.
  */
 
+import { createLogger } from "@shetty4l/core/log";
 import type { Result } from "@shetty4l/core/result";
 import { err, ok } from "@shetty4l/core/result";
 import type { ProviderConfig } from "./config";
+
+const log = createLogger("synapse");
 
 export interface ProviderResult {
   /** HTTP status code from upstream */
@@ -44,12 +47,18 @@ function withStreamTimeout(
   stream: ReadableStream<Uint8Array>,
   controller: AbortController,
   idleMs: number,
+  providerName: string,
 ): ReadableStream<Uint8Array> {
   let timer: ReturnType<typeof setTimeout>;
 
   const resetTimer = () => {
     clearTimeout(timer);
-    timer = setTimeout(() => controller.abort(), idleMs);
+    timer = setTimeout(() => {
+      log(
+        `stream idle timeout (${idleMs}ms) for provider "${providerName}", aborting`,
+      );
+      controller.abort();
+    }, idleMs);
   };
 
   return stream.pipeThrough(
@@ -120,6 +129,7 @@ export async function chatCompletions(
         response.body,
         controller,
         STREAM_IDLE_TIMEOUT_MS,
+        provider.name,
       );
       return ok({
         status: response.status,

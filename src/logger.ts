@@ -10,10 +10,13 @@
  * Uses async I/O and batched writes to avoid blocking the event loop.
  */
 
+import { createLogger } from "@shetty4l/core/log";
 import { existsSync, mkdirSync } from "fs";
 import { appendFile, rename, stat, unlink } from "fs/promises";
 import { homedir } from "os";
 import { join } from "path";
+
+const log = createLogger("synapse");
 
 export interface RequestLogEntry {
   timestamp: string;
@@ -49,9 +52,7 @@ export class RequestLogger {
     this.rotatedPath = join(dir, "requests.log.1");
 
     this.flushTimer = setInterval(() => {
-      this.flush().catch((err) =>
-        console.error("synapse: log flush failed:", err),
-      );
+      this.flush().catch((err) => log(`log flush failed: ${err}`));
     }, FLUSH_INTERVAL_MS);
   }
 
@@ -78,7 +79,7 @@ export class RequestLogger {
       // Check rotation after write
       await this.rotateIfNeeded();
     } catch (err) {
-      console.error("synapse: log write failed:", err);
+      log(`log write failed: ${err}`);
     } finally {
       this.flushing = false;
     }
@@ -95,9 +96,9 @@ export class RequestLogger {
       // Rotate: delete .1, rename current to .1
       await unlink(this.rotatedPath).catch(() => {});
       await rename(this.logPath, this.rotatedPath);
-      console.error("synapse: rotated request log");
+      log("rotated request log");
     } catch (error) {
-      console.error("synapse: log rotation failed:", error);
+      log(`log rotation failed: ${error}`);
     } finally {
       this.rotating = false;
     }
