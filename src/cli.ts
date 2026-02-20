@@ -20,8 +20,8 @@
  */
 
 import { createLogsCommand, formatUptime, runCli } from "@shetty4l/core/cli";
+import { getConfigDir } from "@shetty4l/core/config";
 import { onShutdown } from "@shetty4l/core/signals";
-import { homedir } from "os";
 import { join } from "path";
 import { loadConfig } from "./config";
 import {
@@ -52,11 +52,11 @@ Options:
   --help, -h             Show help
 `;
 
-const LOG_PATH = join(homedir(), ".config", "synapse", "logs", "requests.log");
+const LOG_PATH = join(getConfigDir("synapse"), "synapse.log");
 
 // --- Commands ---
 
-function cmdServe(): void {
+export function run(): void {
   const configResult = loadConfig();
   if (!configResult.ok) {
     console.error(`synapse: config error: ${configResult.error}`);
@@ -70,8 +70,12 @@ function cmdServe(): void {
       await server.logger.shutdown();
       instance.stop();
     },
-    { name: "synapse" },
+    { name: "synapse", timeoutMs: 15_000 },
   );
+}
+
+function cmdServe(): void {
+  run();
 }
 
 async function cmdStart(): Promise<number> {
@@ -214,7 +218,7 @@ function cmdConfig(_args: string[], json: boolean): void {
 
 const cmdLogs = createLogsCommand({
   logFile: LOG_PATH,
-  emptyMessage: "No request logs found.",
+  emptyMessage: "No daemon logs found.",
   defaultCount: 10,
 });
 

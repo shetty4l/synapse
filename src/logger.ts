@@ -10,10 +10,10 @@
  * Uses async I/O and batched writes to avoid blocking the event loop.
  */
 
+import { getConfigDir } from "@shetty4l/core/config";
 import { createLogger } from "@shetty4l/core/log";
 import { existsSync, mkdirSync } from "fs";
 import { appendFile, rename, stat, unlink } from "fs/promises";
-import { homedir } from "os";
 import { join } from "path";
 
 const log = createLogger("synapse");
@@ -32,7 +32,7 @@ export interface RequestLogEntry {
 
 const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 const FLUSH_INTERVAL_MS = 1_000; // Flush buffer every second
-const DEFAULT_LOG_DIR = join(homedir(), ".config", "synapse", "logs");
+const DEFAULT_LOG_DIR = join(getConfigDir("synapse"), "logs");
 
 export class RequestLogger {
   private readonly logPath: string;

@@ -5,16 +5,16 @@
  * Preserves the existing function signatures so cli.ts call sites are unchanged.
  */
 
+import { getConfigDir } from "@shetty4l/core/config";
 import { createDaemonManager, type DaemonStatus } from "@shetty4l/core/daemon";
 import type { Result } from "@shetty4l/core/result";
 import { err, ok } from "@shetty4l/core/result";
-import { homedir } from "os";
 import { join } from "path";
 import { loadConfig } from "./config";
 
 export type { DaemonStatus };
 
-const CONFIG_DIR = join(homedir(), ".config", "synapse");
+const CONFIG_DIR = getConfigDir("synapse");
 
 function getHealthUrl(): string {
   const configResult = loadConfig({ quiet: true });
