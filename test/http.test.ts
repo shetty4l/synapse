@@ -197,13 +197,11 @@ describe("HTTP integration", () => {
     expect(res.headers.get("access-control-allow-methods")).toContain("POST");
   });
 
-  test("GET /unknown — 404 in OpenAI error format", async () => {
+  test("GET /unknown — 404", async () => {
     const res = await fetch(`${base}/unknown-path`);
     expect(res.status).toBe(404);
 
-    const data = (await res.json()) as {
-      error: { type: string; message: string };
-    };
-    expect(data.error.type).toBe("not_found");
+    const data = (await res.json()) as { error: string };
+    expect(data.error).toContain("Unknown endpoint");
   });
 });
