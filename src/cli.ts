@@ -65,7 +65,13 @@ function cmdServe(): void {
   const server = createServer(configResult.value);
   const instance = server.start();
 
-  onShutdown(() => instance.stop(), { name: "synapse" });
+  onShutdown(
+    async () => {
+      await server.logger.shutdown();
+      instance.stop();
+    },
+    { name: "synapse" },
+  );
 }
 
 async function cmdStart(): Promise<number> {

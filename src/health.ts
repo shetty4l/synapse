@@ -7,7 +7,10 @@
  * and is eligible for routing again.
  */
 
+import { createLogger } from "@shetty4l/core/log";
 import type { ProviderConfig } from "./config";
+
+const log = createLogger("synapse");
 
 export interface ProviderHealth {
   /** Provider name (matches ProviderConfig.name) */
@@ -88,13 +91,13 @@ export class HealthTracker {
 
       if (wasHealthy) {
         health.unhealthySince = Date.now();
-        console.error(
-          `synapse: provider "${providerName}" marked unhealthy after ${health.consecutiveFailures} failures (cooldown ${cooldownSeconds}s)`,
+        log(
+          `provider "${providerName}" marked unhealthy after ${health.consecutiveFailures} failures (cooldown ${cooldownSeconds}s)`,
         );
       } else {
         // Already unhealthy — extend cooldown on continued failures
-        console.error(
-          `synapse: provider "${providerName}" still failing (${health.consecutiveFailures} consecutive), cooldown extended`,
+        log(
+          `provider "${providerName}" still failing (${health.consecutiveFailures} consecutive), cooldown extended`,
         );
       }
     }
@@ -107,9 +110,7 @@ export class HealthTracker {
     const health = this.state.get(providerName);
     if (!health) return;
 
-    console.error(
-      `synapse: provider "${providerName}" auto-recovered after cooldown`,
-    );
+    log(`provider "${providerName}" auto-recovered after cooldown`);
     health.healthy = true;
     health.consecutiveFailures = 0;
     health.unhealthySince = 0;

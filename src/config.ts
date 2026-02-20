@@ -10,8 +10,11 @@
  */
 
 import { loadJsonConfig, parsePort } from "@shetty4l/core/config";
+import { createLogger } from "@shetty4l/core/log";
 import type { Result } from "@shetty4l/core/result";
 import { err, ok } from "@shetty4l/core/result";
+
+const log = createLogger("synapse");
 
 // --- Types ---
 
@@ -163,12 +166,12 @@ export function loadConfig(options?: {
 
   if (!quiet) {
     if (loaded.value.source === "file") {
-      console.error(
-        `synapse: loaded config from ${loaded.value.path} (${validated.value.providers.length} provider(s))`,
+      log(
+        `loaded config from ${loaded.value.path} (${validated.value.providers.length} provider(s))`,
       );
     } else {
-      console.error(
-        `synapse: no config at ${loaded.value.path}, using defaults (ollama @ localhost:11434)`,
+      log(
+        `no config at ${loaded.value.path}, using defaults (ollama @ localhost:11434)`,
       );
     }
   }
