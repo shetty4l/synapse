@@ -88,13 +88,13 @@ describe("MetricsRingBuffer", () => {
     expect(stats.buffer.capacity).toBe(100);
     expect(stats.buffer.size).toBe(0);
     expect(stats.buffer.oldest_entry_at).toBeNull();
-    expect(stats.requests.total_1h).toBe(0);
-    expect(stats.requests.errors_1h).toBe(0);
+    expect(stats.requests.total_24h).toBe(0);
+    expect(stats.requests.errors_24h).toBe(0);
     expect(stats.requests.by_provider).toEqual({});
     expect(stats.latency.p50_ms).toBeNull();
     expect(stats.latency.p95_ms).toBeNull();
     expect(stats.latency.p99_ms).toBeNull();
-    expect(stats.fallbacks.count_1h).toBe(0);
+    expect(stats.fallbacks.count_24h).toBe(0);
     expect(stats.providers).toEqual([]);
   });
 
@@ -107,15 +107,15 @@ describe("MetricsRingBuffer", () => {
 
     expect(stats.buffer.size).toBe(1);
     expect(stats.buffer.oldest_entry_at).toBe(now);
-    expect(stats.requests.total_1h).toBe(1);
-    expect(stats.requests.errors_1h).toBe(0);
+    expect(stats.requests.total_24h).toBe(1);
+    expect(stats.requests.errors_24h).toBe(0);
     expect(stats.requests.by_provider).toEqual({
       kimi: { total: 1, errors: 0 },
     });
     expect(stats.latency.p50_ms).toBe(500);
     expect(stats.latency.p95_ms).toBe(500);
     expect(stats.latency.p99_ms).toBe(500);
-    expect(stats.fallbacks.count_1h).toBe(0);
+    expect(stats.fallbacks.count_24h).toBe(0);
   });
 
   test("ring buffer overflow — old entries overwritten, size capped", () => {
@@ -144,26 +144,26 @@ describe("MetricsRingBuffer", () => {
     expect(stats.buffer.oldest_entry_at).toBe(now + 3);
 
     // All 5 remaining entries are within the window
-    expect(stats.requests.total_1h).toBe(5);
+    expect(stats.requests.total_24h).toBe(5);
   });
 
-  test("time window filtering — old entries excluded from 1h aggregates", () => {
+  test("time window filtering — old entries excluded from 24h aggregates", () => {
     const buf = new MetricsRingBuffer(100);
     const now = Date.now();
-    const oneHourAgo = now - 3_600_000;
+    const oneDayAgo = now - 86_400_000;
 
-    // Insert 3 old entries (outside 1h window)
+    // Insert 3 old entries (outside 24h window)
     for (let i = 0; i < 3; i++) {
       buf.record(
         makeEntry({
-          timestamp: oneHourAgo - 1000 * (i + 1),
+          timestamp: oneDayAgo - 1000 * (i + 1),
           provider: "old",
           latencyMs: 100,
         }),
       );
     }
 
-    // Insert 2 recent entries (inside 1h window)
+    // Insert 2 recent entries (inside 24h window)
     buf.record(makeEntry({ timestamp: now - 1000, provider: "new" }));
     buf.record(makeEntry({ timestamp: now - 500, provider: "new" }));
 
@@ -172,8 +172,8 @@ describe("MetricsRingBuffer", () => {
     // Buffer has all 5 entries
     expect(stats.buffer.size).toBe(5);
 
-    // But 1h aggregates only count the 2 recent ones
-    expect(stats.requests.total_1h).toBe(2);
+    // But 24h aggregates only count the 2 recent ones
+    expect(stats.requests.total_24h).toBe(2);
     expect(stats.requests.by_provider).toEqual({
       new: { total: 2, errors: 0 },
     });
@@ -193,7 +193,7 @@ describe("MetricsRingBuffer", () => {
 
     const stats = buf.getStats(EMPTY_PROVIDERS, now);
 
-    expect(stats.requests.total_1h).toBe(5);
+    expect(stats.requests.total_24h).toBe(5);
     expect(stats.requests.by_provider).toEqual({
       kimi: { total: 2, errors: 0 },
       "local-gpu": { total: 2, errors: 1 },
@@ -212,8 +212,8 @@ describe("MetricsRingBuffer", () => {
 
     const stats = buf.getStats(EMPTY_PROVIDERS, now);
 
-    expect(stats.requests.total_1h).toBe(4);
-    expect(stats.requests.errors_1h).toBe(2);
+    expect(stats.requests.total_24h).toBe(4);
+    expect(stats.requests.errors_24h).toBe(2);
   });
 
   test("fallover counting", () => {
@@ -227,7 +227,7 @@ describe("MetricsRingBuffer", () => {
 
     const stats = buf.getStats(EMPTY_PROVIDERS, now);
 
-    expect(stats.fallbacks.count_1h).toBe(2);
+    expect(stats.fallbacks.count_24h).toBe(2);
   });
 
   test("latency percentiles only from successful requests", () => {

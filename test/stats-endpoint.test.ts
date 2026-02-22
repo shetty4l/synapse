@@ -86,8 +86,8 @@ describe("GET /stats", () => {
     expect(data.buffer.oldest_entry_at).toBeNull();
 
     // Request aggregates
-    expect(data.requests.total_1h).toBe(0);
-    expect(data.requests.errors_1h).toBe(0);
+    expect(data.requests.total_24h).toBe(0);
+    expect(data.requests.errors_24h).toBe(0);
     expect(data.requests.by_provider).toEqual({});
 
     // Latency nulls when no data
@@ -96,7 +96,7 @@ describe("GET /stats", () => {
     expect(data.latency.p99_ms).toBeNull();
 
     // Fallbacks
-    expect(data.fallbacks.count_1h).toBe(0);
+    expect(data.fallbacks.count_24h).toBe(0);
 
     // Provider health
     expect(data.providers).toHaveLength(1);
@@ -126,8 +126,8 @@ describe("GET /stats", () => {
     // Should have at least 1 entry (may have more if other tests ran first)
     expect(data.buffer.size).toBeGreaterThanOrEqual(1);
     expect(data.buffer.oldest_entry_at).toBeTypeOf("number");
-    expect(data.requests.total_1h).toBeGreaterThanOrEqual(1);
-    expect(data.requests.errors_1h).toBe(0);
+    expect(data.requests.total_24h).toBeGreaterThanOrEqual(1);
+    expect(data.requests.errors_24h).toBe(0);
 
     // Should have the mock-provider in by_provider
     expect(data.requests.by_provider["mock-provider"]).toBeDefined();
@@ -141,7 +141,7 @@ describe("GET /stats", () => {
     expect(data.latency.p99_ms).toBeTypeOf("number");
 
     // No failovers (single provider, always succeeds)
-    expect(data.fallbacks.count_1h).toBe(0);
+    expect(data.fallbacks.count_24h).toBe(0);
   });
 
   test("returns CORS headers", async () => {

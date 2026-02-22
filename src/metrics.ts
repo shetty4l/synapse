@@ -2,7 +2,7 @@
  * In-memory metrics ring buffer for request tracking.
  *
  * Fixed-size circular buffer that stores the most recent N request entries.
- * Provides aggregated stats over a 1-hour sliding window for the /stats
+ * Provides aggregated stats over a 24-hour sliding window for the /stats
  * endpoint. All data lives in memory and resets on restart.
  */
 
@@ -37,8 +37,8 @@ export interface StatsResponse {
     oldest_entry_at: number | null;
   };
   requests: {
-    total_1h: number;
-    errors_1h: number;
+    total_24h: number;
+    errors_24h: number;
     by_provider: Record<string, ProviderStats>;
   };
   latency: {
@@ -47,7 +47,7 @@ export interface StatsResponse {
     p99_ms: number | null;
   };
   fallbacks: {
-    count_1h: number;
+    count_24h: number;
   };
   providers: {
     name: string;
@@ -58,8 +58,8 @@ export interface StatsResponse {
 
 // --- Constants ---
 
-/** Sliding window for time-based aggregations (1 hour) */
-const WINDOW_MS = 3_600_000;
+/** Sliding window for time-based aggregations (24 hours) */
+const WINDOW_MS = 86_400_000;
 
 // --- Percentile helper ---
 
@@ -166,8 +166,8 @@ export class MetricsRingBuffer {
         oldest_entry_at: oldestTimestamp,
       },
       requests: {
-        total_1h: windowEntries.length,
-        errors_1h: totalErrors,
+        total_24h: windowEntries.length,
+        errors_24h: totalErrors,
         by_provider: byProvider,
       },
       latency: {
@@ -176,7 +176,7 @@ export class MetricsRingBuffer {
         p99_ms: hasLatency ? percentile(successLatencies, 99) : null,
       },
       fallbacks: {
-        count_1h: failoverCount,
+        count_24h: failoverCount,
       },
       providers: providerHealth.map((p) => ({
         name: p.name,
