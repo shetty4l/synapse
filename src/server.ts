@@ -5,6 +5,7 @@
  *   POST /v1/chat/completions  — proxy to provider chain
  *   GET  /v1/models            — aggregated models from all healthy providers
  *   GET  /health               — service health + provider status
+ *   GET  /stats                — request metrics and provider health
  *
  * Built on core's createServer which handles CORS preflight, /health routing,
  * and 404s. Synapse provides an onHealth callback for custom provider status
@@ -20,7 +21,9 @@ import {
 import { createLogger } from "@shetty4l/core/log";
 import type { SynapseConfig } from "./config";
 import { createLogEntry, RequestLogger } from "./logger";
+import { MetricsRingBuffer } from "./metrics";
 import { checkReachable } from "./provider";
+import type { RouteResult } from "./router";
 import { Router } from "./router";
 import { VERSION } from "./version";
 
@@ -88,6 +91,7 @@ function openaiError(
 async function handleChatCompletions(
   router: Router,
   logger: RequestLogger,
+  metrics: MetricsRingBuffer,
   request: Request,
 ): Promise<Response> {
   if (request.method !== "POST") {
@@ -146,6 +150,7 @@ async function handleChatCompletions(
         result.error,
       ),
     );
+    recordMetrics(metrics, parsed.model, result, latencyMs);
     return openaiError(502, result.error ?? "All providers exhausted");
   }
 
@@ -162,6 +167,7 @@ async function handleChatCompletions(
       result.skipped,
     ),
   );
+  recordMetrics(metrics, parsed.model, result, latencyMs);
 
   const headers = new Headers({
     ...corsHeaders(),
@@ -224,6 +230,39 @@ async function handleHealth(
   });
 }
 
+// --- Metrics recording ---
+
+/**
+ * Record a completed request into the metrics ring buffer.
+ */
+function recordMetrics(
+  metrics: MetricsRingBuffer,
+  model: string,
+  result: RouteResult,
+  latencyMs: number,
+): void {
+  const success =
+    result.result !== null &&
+    result.result.status >= 200 &&
+    result.result.status < 300;
+
+  const wasFailover = result.attempted.length > 1;
+
+  metrics.record({
+    timestamp: Date.now(),
+    model,
+    provider: result.provider?.name ?? null,
+    latencyMs: Math.round(latencyMs),
+    success,
+    wasFailover,
+  });
+}
+
+function handleStats(metrics: MetricsRingBuffer, router: Router): Response {
+  const providerHealth = router.health.getAll();
+  return jsonOk(metrics.getStats(providerHealth));
+}
+
 // --- Server ---
 
 export interface SynapseServer {
@@ -238,6 +277,7 @@ export interface SynapseServer {
 export function createServer(config: SynapseConfig): SynapseServer {
   const router = new Router(config);
   const logger = new RequestLogger();
+  const metrics = new MetricsRingBuffer();
 
   const server = createHttpServer({
     name: "synapse",
@@ -250,9 +290,11 @@ export function createServer(config: SynapseConfig): SynapseServer {
 
       let response: Response;
       if (path === "/v1/chat/completions") {
-        response = await handleChatCompletions(router, logger, req);
+        response = await handleChatCompletions(router, logger, metrics, req);
       } else if (path === "/v1/models") {
         response = await handleModels(router);
+      } else if (path === "/stats" && req.method === "GET") {
+        response = handleStats(metrics, router);
       } else {
         return null;
       }
