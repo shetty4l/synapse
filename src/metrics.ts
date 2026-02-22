@@ -126,7 +126,7 @@ export class MetricsRingBuffer {
 
     // Aggregate requests
     let totalErrors = 0;
-    let falloverCount = 0;
+    let failoverCount = 0;
     const byProvider: Record<string, ProviderStats> = {};
     const successLatencies: number[] = [];
 
@@ -135,7 +135,7 @@ export class MetricsRingBuffer {
         totalErrors += 1;
       }
       if (entry.wasFailover) {
-        falloverCount += 1;
+        failoverCount += 1;
       }
 
       // Group by provider
@@ -176,7 +176,7 @@ export class MetricsRingBuffer {
         p99_ms: hasLatency ? percentile(successLatencies, 99) : null,
       },
       fallbacks: {
-        count_1h: falloverCount,
+        count_1h: failoverCount,
       },
       providers: providerHealth.map((p) => ({
         name: p.name,
