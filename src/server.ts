@@ -299,8 +299,10 @@ export function createServer(config: SynapseConfig): SynapseServer {
         return null;
       }
 
-      const latency = (performance.now() - start).toFixed(0);
-      log(`${req.method} ${path} ${response.status} ${latency}ms`);
+      if (path !== "/stats") {
+        const latency = (performance.now() - start).toFixed(0);
+        log(`${req.method} ${path} ${response.status} ${latency}ms`);
+      }
 
       return response;
     },
