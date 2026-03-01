@@ -31,6 +31,8 @@ export interface ProviderConfig {
   maxFailures?: number;
   /** Seconds to wait before retrying an unhealthy provider (default: 60) */
   cooldownSeconds?: number;
+  /** Provider type for request translation (default: "openai") */
+  type?: "openai" | "ollama";
 }
 
 export interface SynapseConfig {
@@ -83,6 +85,12 @@ function validateProvider(
     }
   }
 
+  // Validate type field: must be "openai" or "ollama", default to "openai"
+  let type: "openai" | "ollama" = "openai";
+  if (obj.type === "openai" || obj.type === "ollama") {
+    type = obj.type;
+  }
+
   return ok({
     name: obj.name,
     baseUrl: obj.baseUrl,
@@ -91,6 +99,7 @@ function validateProvider(
     maxFailures: typeof obj.maxFailures === "number" ? obj.maxFailures : 3,
     cooldownSeconds:
       typeof obj.cooldownSeconds === "number" ? obj.cooldownSeconds : 60,
+    type,
   });
 }
 
