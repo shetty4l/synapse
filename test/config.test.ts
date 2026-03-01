@@ -163,4 +163,91 @@ describe("loadConfig", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("non-empty string");
   });
+
+  test("accepts type: 'ollama' for provider", () => {
+    const configPath = join(tmpDir, "config.json");
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        providers: [
+          {
+            name: "local-ollama",
+            baseUrl: "http://localhost:11434/v1",
+            models: ["*"],
+            type: "ollama",
+          },
+        ],
+      }),
+    );
+
+    const result = loadConfig({ configPath, quiet: true });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.providers[0].type).toBe("ollama");
+  });
+
+  test("accepts type: 'openai' for provider", () => {
+    const configPath = join(tmpDir, "config.json");
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        providers: [
+          {
+            name: "openai",
+            baseUrl: "https://api.openai.com/v1",
+            models: ["gpt-4"],
+            type: "openai",
+          },
+        ],
+      }),
+    );
+
+    const result = loadConfig({ configPath, quiet: true });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.providers[0].type).toBe("openai");
+  });
+
+  test("defaults type to 'openai' when not specified", () => {
+    const configPath = join(tmpDir, "config.json");
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        providers: [
+          {
+            name: "no-type",
+            baseUrl: "http://localhost:8080/v1",
+            models: ["*"],
+          },
+        ],
+      }),
+    );
+
+    const result = loadConfig({ configPath, quiet: true });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.providers[0].type).toBe("openai");
+  });
+
+  test("defaults invalid type to 'openai'", () => {
+    const configPath = join(tmpDir, "config.json");
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        providers: [
+          {
+            name: "invalid-type",
+            baseUrl: "http://localhost:8080/v1",
+            models: ["*"],
+            type: "invalid",
+          },
+        ],
+      }),
+    );
+
+    const result = loadConfig({ configPath, quiet: true });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.providers[0].type).toBe("openai");
+  });
 });

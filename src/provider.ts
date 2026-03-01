@@ -40,6 +40,55 @@ const TIMEOUT_MS = 120_000; // 2 minutes
 const STREAM_IDLE_TIMEOUT_MS = 30_000; // 30 seconds between chunks
 
 /**
+ * Translate request body for provider-specific format requirements.
+ *
+ * OpenAI uses: response_format: { type: "json_schema", json_schema: { schema: {...} } }
+ * Ollama uses: format: {...schema...}
+ *
+ * For OpenAI-type providers, pass through unchanged.
+ * For Ollama-type providers, extract json_schema.schema and move to format field.
+ */
+export function translateRequestBody(
+  body: string,
+  providerType: "openai" | "ollama",
+): string {
+  // OpenAI-compatible providers: pass through unchanged
+  if (providerType === "openai") {
+    return body;
+  }
+
+  // Ollama: translate response_format.json_schema.schema → format
+  try {
+    const parsed = JSON.parse(body) as Record<string, unknown>;
+
+    // Only translate if response_format exists and has the expected structure
+    const responseFormat = parsed.response_format as
+      | Record<string, unknown>
+      | undefined;
+    if (!responseFormat) {
+      return body;
+    }
+
+    const jsonSchema = responseFormat.json_schema as
+      | Record<string, unknown>
+      | undefined;
+    if (!jsonSchema?.schema) {
+      return body;
+    }
+
+    // Extract the schema and set as format, remove response_format
+    const translated = { ...parsed };
+    translated.format = jsonSchema.schema;
+    delete translated.response_format;
+
+    return JSON.stringify(translated);
+  } catch {
+    // If JSON parsing fails, return original body (let downstream error)
+    return body;
+  }
+}
+
+/**
  * Wrap a ReadableStream with an idle timeout that aborts if no data
  * arrives within the given interval. Also ensures cleanup on completion.
  */
@@ -99,6 +148,9 @@ export async function chatCompletions(
     headers["Authorization"] = `Bearer ${provider.apiKey}`;
   }
 
+  // Translate request body for provider-specific format
+  const translatedBody = translateRequestBody(body, provider.type ?? "openai");
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
@@ -111,7 +163,7 @@ export async function chatCompletions(
     const response = await fetch(url, {
       method: "POST",
       headers,
-      body,
+      body: translatedBody,
       signal: controller.signal,
     });
 
